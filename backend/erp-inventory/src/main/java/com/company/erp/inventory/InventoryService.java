@@ -86,7 +86,7 @@ public final class InventoryService {
         Ids.newId(), warehouseId, skuCode, delta, balanceType, reasonCode, sourceId);
   }
 
-  private int available(String warehouseId, String skuCode) {
+  public int available(String warehouseId, String skuCode) {
     List<Integer> quantities = jdbc.query(
         "select sellable_qty from inv_balance where warehouse_id = ? and sku_code = ?",
         (resultSet, rowNumber) -> resultSet.getInt(1),

@@ -3,11 +3,19 @@ package com.company.erp.order;
 import com.company.erp.connectors.IngestionResult;
 import com.company.erp.connectors.NormalizedOrder;
 import com.company.erp.connectors.OrderIngestionPort;
+import com.company.erp.fulfillment.FulfillmentService;
+import com.company.erp.fulfillment.RoutingPolicy;
+import com.company.erp.inventory.InventoryService;
 import com.company.erp.masterdata.MasterDataService;
+import com.company.erp.outbox.OutboxService;
+import com.company.erp.shared.EventEnvelope;
 import com.company.erp.shared.Ids;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -17,6 +25,11 @@ public final class OrderIngestionService implements OrderIngestionPort {
   private final JdbcTemplate jdbc;
   private final MasterDataService masterData;
   private final TransactionTemplate transactions;
+  private final InventoryService inventory;
+  private final FulfillmentService fulfillment;
+  private final RoutingPolicy routing;
+  private final OutboxService outbox;
+  private final Clock clock;
 
   public OrderIngestionService(
       JdbcTemplate jdbc,
@@ -28,6 +41,34 @@ public final class OrderIngestionService implements OrderIngestionPort {
     this.jdbc = jdbc;
     this.masterData = masterData;
     this.transactions = new TransactionTemplate(transactionManager);
+    this.inventory = null;
+    this.fulfillment = null;
+    this.routing = null;
+    this.outbox = null;
+    this.clock = null;
+  }
+
+  public OrderIngestionService(
+      JdbcTemplate jdbc,
+      MasterDataService masterData,
+      PlatformTransactionManager transactionManager,
+      InventoryService inventory,
+      FulfillmentService fulfillment,
+      RoutingPolicy routing,
+      OutboxService outbox,
+      Clock clock) {
+    if (jdbc == null || masterData == null || transactionManager == null || inventory == null
+        || fulfillment == null || routing == null || outbox == null || clock == null) {
+      throw new IllegalArgumentException("All orchestration dependencies are required");
+    }
+    this.jdbc = jdbc;
+    this.masterData = masterData;
+    this.transactions = new TransactionTemplate(transactionManager);
+    this.inventory = inventory;
+    this.fulfillment = fulfillment;
+    this.routing = routing;
+    this.outbox = outbox;
+    this.clock = clock;
   }
 
   @Override
@@ -97,7 +138,41 @@ public final class OrderIngestionService implements OrderIngestionPort {
           "OPEN");
       return new IngestionResult(orderId, status, "SKU_NOT_MAPPED");
     }
+    if (inventory != null) {
+      return createFulfillment(input, orderId, mappedLines);
+    }
     return new IngestionResult(orderId, status, "");
+  }
+
+  private IngestionResult createFulfillment(
+      NormalizedOrder input,
+      String orderId,
+      List<MappedLine> mappedLines) {
+    Map<String, Integer> quantities = new LinkedHashMap<>();
+    mappedLines.forEach(mapped -> quantities.merge(
+        mapped.internalSkuCode(), mapped.line().quantity(), Integer::sum));
+    var warehouseId = routing.candidateWarehouses(
+            input.shopId(), "", List.copyOf(quantities.keySet())).stream()
+        .filter(candidate -> quantities.entrySet().stream()
+            .allMatch(entry -> inventory.available(candidate, entry.getKey()) >= entry.getValue()))
+        .findFirst()
+        .orElseThrow(() -> new IllegalStateException("No warehouse can reserve the complete order"));
+    quantities.forEach((sku, quantity) -> {
+      var result = inventory.reserve(orderId, warehouseId, sku, quantity);
+      if (!"RESERVED".equals(result.status())) {
+        throw new IllegalStateException("Inventory changed while reserving the order");
+      }
+    });
+    var fulfillmentOrder = fulfillment.create(
+        orderId, warehouseId, "SELF_WAREHOUSE", "RESERVED");
+    outbox.append(new EventEnvelope<>(
+        Ids.newId(),
+        "FulfillmentCreated",
+        fulfillmentOrder.id(),
+        clock.instant(),
+        Map.of("orderId", orderId, "warehouseId", warehouseId)));
+    jdbc.update("update ord_sales_order set status = 'READY_TO_FULFILL' where id = ?", orderId);
+    return new IngestionResult(orderId, "READY_TO_FULFILL", "");
   }
 
   private IngestionResult findExisting(NormalizedOrder input) {
