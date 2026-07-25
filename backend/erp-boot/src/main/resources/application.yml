@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: ecommerce-erp
+  datasource:
+    url: ${ERP_DB_URL:jdbc:mysql://localhost:3306/erp}
+    username: ${ERP_DB_USERNAME:erp}
+    password: ${ERP_DB_PASSWORD:erp_local}
+  flyway:
+    enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${ERP_JWT_JWK_SET_URI:http://localhost:9000/.well-known/jwks.json}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-} orderId=%X{orderId:-} platform=%X{platform:-}]"
