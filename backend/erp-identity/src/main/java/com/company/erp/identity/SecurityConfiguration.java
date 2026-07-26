@@ -6,6 +6,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -14,6 +15,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfiguration {
   @Bean
   SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
@@ -23,6 +25,8 @@ public class SecurityConfiguration {
         .authorizeHttpRequests(authorize -> authorize
             .requestMatchers("/actuator/health").permitAll()
             .requestMatchers("/api/orders/**", "/api/orders").hasRole("ORDER_VIEW")
+            .requestMatchers("/api/products/**")
+                .hasAnyRole("PRODUCT_VIEW", "PRODUCT_OPERATOR", "PRODUCT_ADMIN")
             .anyRequest().authenticated())
         .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt
             .jwtAuthenticationConverter(jwtAuthenticationConverter())))
