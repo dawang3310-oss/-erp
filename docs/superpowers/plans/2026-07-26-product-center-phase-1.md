@@ -703,17 +703,17 @@ export function updateProduct(id: string, input: ProductUpdate): Promise<void>
 export function changeProductStatus(id: string, input: StatusChange): Promise<void>
 ```
 
-- [ ] **Step 1: Write failing API client tests with MSW**
+- [x] **Step 1: Write failing API client tests with MSW**
 
 Assert query encoding, bearer token forwarding, 409 error conversion, and `Idempotency-Key` forwarding for job endpoints.
 
-- [ ] **Step 2: Run the client test and verify it fails**
+- [x] **Step 2: Run the client test and verify it fails**
 
 Run: `pnpm --dir frontend --filter admin test --run src/api/products.spec.ts`
 
 Expected: FAIL because `products.ts` does not exist.
 
-- [ ] **Step 3: Implement the typed client**
+- [x] **Step 3: Implement the typed client**
 
 Use the existing `tokenStore`; convert non-2xx responses into:
 
@@ -725,7 +725,7 @@ export class ProductApiError extends Error {
 }
 ```
 
-- [ ] **Step 4: Add routes and active navigation**
+- [x] **Step 4: Add routes and active navigation**
 
 Add:
 
@@ -739,7 +739,7 @@ Add:
 
 Convert the existing 商品 placeholder into a `RouterLink` and derive breadcrumbs from route metadata rather than hard-coding order labels.
 
-- [ ] **Step 5: Run frontend tests and typecheck**
+- [x] **Step 5: Run frontend tests and typecheck**
 
 Run: `pnpm --dir frontend test`
 
@@ -747,7 +747,7 @@ Run: `pnpm --dir frontend typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/apps/admin/src/api frontend/apps/admin/src/router.ts frontend/apps/admin/src/App.vue

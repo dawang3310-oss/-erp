@@ -24,8 +24,8 @@ const collapsed = ref(false)
 
 const navItems = [
   { label: '工作台', icon: DesktopOutlined },
-  { label: '订单', icon: OrderedListOutlined, to: '/orders' },
-  { label: '商品', icon: TagsOutlined },
+  { label: '订单', icon: OrderedListOutlined, to: '/orders', section: 'orders' },
+  { label: '商品', icon: TagsOutlined, to: '/products', section: 'products' },
   { label: '库存', icon: InboxOutlined },
   { label: '采购', icon: ShoppingCartOutlined },
   { label: '履约', icon: CarOutlined },
@@ -35,9 +35,8 @@ const navItems = [
   { label: '系统设置', icon: SettingOutlined },
 ]
 
-const pageTitle = computed(() =>
-  route.name === 'order-exceptions' ? '异常订单' : '订单管理',
-)
+const sectionLabel = computed(() => String(route.meta.sectionLabel ?? '工作台'))
+const pageTitle = computed(() => String(route.meta.title ?? '工作台'))
 </script>
 
 <template>
@@ -53,9 +52,9 @@ const pageTitle = computed(() =>
             v-if="item.to"
             :to="item.to"
             class="nav-item"
-            :class="{ active: route.path.startsWith('/orders') || route.path.startsWith('/exceptions') }"
+            :class="{ active: route.meta.section === item.section }"
           >
-            <component :is="item.icon" />
+            <component :is="item.icon" aria-hidden="true" />
             <span class="nav-label">{{ item.label }}</span>
           </RouterLink>
           <button v-else type="button" class="nav-item nav-placeholder">
@@ -79,7 +78,7 @@ const pageTitle = computed(() =>
           <div class="breadcrumbs" aria-label="面包屑">
             <span>工作台</span>
             <b>/</b>
-            <span>订单</span>
+            <span>{{ sectionLabel }}</span>
             <b>/</b>
             <strong>{{ pageTitle }}</strong>
           </div>
