@@ -575,7 +575,7 @@ erp:
     product-bucket: ${ERP_PRODUCT_BUCKET:erp-products}
 ```
 
-- [ ] **Step 4: Write failing job-state integration tests**
+- [x] **Step 4: Write failing job-state integration tests**
 
 Assert the exact import state machine:
 
@@ -587,13 +587,13 @@ UPLOADED -> PREFLIGHT_READY -> CONFIRMED -> RUNNING -> SUCCEEDED
 
 Assert upload returns a job ID before parsing begins, `executePreflight` writes no SPU/SKU rows, duplicate confirmation with the same idempotency key creates one execution, legal rows commit in bounded groups of 200, and row failures remain downloadable.
 
-- [ ] **Step 5: Run the import test and verify it fails**
+- [x] **Step 5: Run the import test and verify it fails**
 
 Run: `mvn -f backend/pom.xml -pl erp-masterdata -am -Dtest=ProductImportServiceIT -Dsurefire.failIfNoSpecifiedTests=false test`
 
 Expected: FAIL because the service does not exist.
 
-- [ ] **Step 6: Implement persisted job transitions**
+- [x] **Step 6: Implement persisted job transitions**
 
 Use conditional updates such as:
 
