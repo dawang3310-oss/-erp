@@ -22,6 +22,7 @@
     <module>erp-fulfillment</module>
     <module>erp-identity</module>
     <module>erp-boot</module>
+    <module>erp-pinduoduo-connector</module>
   </modules>
 
   <dependencyManagement>
