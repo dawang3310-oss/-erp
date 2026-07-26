@@ -25,6 +25,13 @@ management:
     tags:
       application: ${spring.application.name}
 
+erp:
+  storage:
+    endpoint: ${ERP_STORAGE_ENDPOINT:http://localhost:9000}
+    access-key: ${ERP_STORAGE_ACCESS_KEY:erp_local}
+    secret-key: ${ERP_STORAGE_SECRET_KEY:erp_local_secret}
+    product-bucket: ${ERP_PRODUCT_BUCKET:erp-products}
+
 logging:
   pattern:
     level: "%5p [traceId=%X{traceId:-} orderId=%X{orderId:-} platform=%X{platform:-}]"

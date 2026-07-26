@@ -12,6 +12,8 @@
     <spring-boot.version>3.5.3</spring-boot.version>
     <docker.api.version>1.40</docker.api.version>
     <poi.version>5.5.1</poi.version>
+    <minio.version>8.6.0</minio.version>
+    <okhttp.version>5.1.0</okhttp.version>
   </properties>
 
   <modules>

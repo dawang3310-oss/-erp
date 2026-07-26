@@ -7,6 +7,8 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
     <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
+    <dependency><groupId>io.minio</groupId><artifactId>minio</artifactId><version>${minio.version}</version></dependency>
+    <dependency><groupId>com.squareup.okhttp3</groupId><artifactId>okhttp-jvm</artifactId><version>${okhttp.version}</version></dependency>
     <dependency><groupId>com.company.erp</groupId><artifactId>erp-order</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>com.company.erp</groupId><artifactId>erp-masterdata</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>com.company.erp</groupId><artifactId>erp-inventory</artifactId><version>${project.version}</version></dependency>

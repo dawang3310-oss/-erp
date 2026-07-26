@@ -546,17 +546,17 @@ String createExport(ProductFilter filter, AuditActor actor);
 ExportJobView getExportJob(String jobId);
 ```
 
-- [ ] **Step 1: Lock MinIO SDK 8.6.0 and write failing object-storage integration tests**
+- [x] **Step 1: Lock MinIO SDK 8.6.0 and write failing object-storage integration tests**
 
 Add root property `minio.version=8.6.0` and `io.minio:minio` to `erp-boot`. Start the existing MinIO image with Testcontainers, upload workbook bytes, read them back, and assert checksum equality and bucket creation.
 
-- [ ] **Step 2: Run the storage test and verify it fails**
+- [x] **Step 2: Run the storage test and verify it fails**
 
 Run: `mvn -f backend/pom.xml -pl erp-boot -am -Dtest=MinioProductObjectStoreIT -Dsurefire.failIfNoSpecifiedTests=false test`
 
 Expected: FAIL because the storage adapter does not exist.
 
-- [ ] **Step 3: Implement the general product object store**
+- [x] **Step 3: Implement the general product object store**
 
 ```java
 StoredProductObject put(String objectKey, InputStream body, long size, String contentType, String sha256);
