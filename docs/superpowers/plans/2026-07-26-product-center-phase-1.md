@@ -934,7 +934,7 @@ git commit -m "feat: add product import and export center"
 **Interfaces:**
 - Verifies all Phase 1 deliverables without depending on platform connectors.
 
-- [ ] **Step 1: Write the failing browser flow**
+- [x] **Step 1: Write the failing browser flow**
 
 The Playwright flow must:
 
@@ -949,17 +949,17 @@ The Playwright flow must:
 9. confirm and wait for success;
 10. verify imported SKU appears in product search.
 
-- [ ] **Step 2: Run the browser test and verify the first incomplete behavior fails**
+- [x] **Step 2: Run the browser test and verify the first incomplete behavior fails**
 
 Run: `pnpm --dir frontend --filter admin e2e -- product-flow.spec.ts`
 
 Expected: FAIL at the first Phase 1 behavior not yet correctly wired to the test environment.
 
-- [ ] **Step 3: Add deterministic E2E setup**
+- [x] **Step 3: Add deterministic E2E setup**
 
 Use API-level setup and cleanup limited to product test records whose codes begin `E2E-`. Never delete non-test product rows. Configure the test JWT with `PRODUCT_VIEW` and `PRODUCT_ADMIN`.
 
-- [ ] **Step 4: Write the operations runbook**
+- [x] **Step 4: Write the operations runbook**
 
 Document:
 
@@ -971,7 +971,7 @@ Document:
 - object-store backup requirements;
 - health verification and rollback rules for `V008`.
 
-- [ ] **Step 5: Run the complete verification gate**
+- [x] **Step 5: Run the complete verification gate**
 
 Run: `mvn -f backend/pom.xml verify`
 
@@ -985,11 +985,11 @@ Run: `pnpm --dir frontend --filter admin e2e -- product-flow.spec.ts`
 
 Expected: all commands PASS with no skipped Phase 1 acceptance test.
 
-- [ ] **Step 6: Inspect the rendered UI**
+- [x] **Step 6: Inspect the rendered UI**
 
 Verify desktop 1536×1024 and mobile 390×844 views for nonblank content, no framework error overlay, no horizontal page overflow, usable form controls, and no browser console errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add frontend/apps/admin/e2e docs/runbooks
