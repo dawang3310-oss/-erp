@@ -11,6 +11,10 @@ const useCommandShell = process.platform === 'win32'
 const composeFile = path.join(repositoryRoot, 'infra', 'compose.yaml')
 const databaseName = `erp_product_e2e_${process.pid}`
 const productBucket = 'erp-products-e2e'
+type DockerComposeRunner = (
+  arguments_: string[],
+  stdio?: 'ignore' | 'inherit',
+) => unknown
 
 function dockerCompose(arguments_: string[], stdio: 'ignore' | 'inherit' = 'inherit') {
   return execFileSync('docker', ['compose', '-f', composeFile, ...arguments_], {
@@ -19,22 +23,41 @@ function dockerCompose(arguments_: string[], stdio: 'ignore' | 'inherit' = 'inhe
   })
 }
 
-async function prepareDatabase() {
-  const deadline = Date.now() + 60_000
+export async function waitForAuthenticatedMysql(
+  execute: DockerComposeRunner = dockerCompose,
+  wait: (milliseconds: number) => Promise<void> = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  timeoutMs = 60_000,
+) {
+  const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     try {
-      dockerCompose(
-        ['exec', '-T', 'mysql', 'mysqladmin', 'ping', '-uroot', '-proot_local', '--silent'],
+      execute(
+        [
+          'exec',
+          '-T',
+          '-e',
+          'MYSQL_PWD=root_local',
+          'mysql',
+          'mysql',
+          '--user=root',
+          '--batch',
+          '--skip-column-names',
+          '--execute',
+          'SELECT 1',
+        ],
         'ignore',
       )
-      break
+      return
     } catch {
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      await wait(500)
     }
   }
-  if (Date.now() >= deadline) {
-    throw new Error('Local E2E MySQL did not become ready')
-  }
+  throw new Error('Local E2E MySQL did not become ready')
+}
+
+async function prepareDatabase() {
+  await waitForAuthenticatedMysql()
   dockerCompose([
     'exec',
     '-T',
