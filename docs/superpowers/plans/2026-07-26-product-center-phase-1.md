@@ -262,7 +262,7 @@ Run: `mvn -f backend/pom.xml -pl erp-masterdata -am test`
 
 Expected: PASS, including the legacy `MasterDataServiceIT`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/erp-masterdata
@@ -765,7 +765,7 @@ git commit -m "feat: add product routes and API client"
 - Consumes: Task 7 `listProducts` and `changeProductStatus`.
 - Produces: accessible product list at `/products`.
 
-- [ ] **Step 1: Write failing component tests**
+- [x] **Step 1: Write failing component tests**
 
 Test:
 
@@ -783,21 +783,21 @@ await user.click(screen.getByRole('button', { name: '查询' }))
 expect(requestedUrl.searchParams.get('keyword')).toBe('SKU-1')
 ```
 
-- [ ] **Step 2: Run the component test and verify it fails**
+- [x] **Step 2: Run the component test and verify it fails**
 
 Run: `pnpm --dir frontend --filter admin test --run src/views/products/ProductListView.spec.ts`
 
 Expected: FAIL because the view does not exist.
 
-- [ ] **Step 3: Implement the accessible list**
+- [x] **Step 3: Implement the accessible list**
 
 Use semantic table markup, explicit labels, real buttons, and status text in addition to color. Keep filters in route query parameters so refresh and back navigation preserve state.
 
-- [ ] **Step 4: Add responsive layout**
+- [x] **Step 4: Add responsive layout**
 
 At widths below 768 px, stack filters and render each row as a labelled product card without hiding SKU code, status, or primary action.
 
-- [ ] **Step 5: Run focused and full frontend tests**
+- [x] **Step 5: Run focused and full frontend tests**
 
 Run: `pnpm --dir frontend --filter admin test --run src/views/products/ProductListView.spec.ts`
 
