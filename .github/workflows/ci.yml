@@ -63,9 +63,16 @@ jobs:
             fi
             sleep 2
           done
-          for version in {001..007}; do
-            migration=$(find backend -path '*/src/main/resources/db/migration/*' -name "V${version}__*.sql")
-            test -n "$migration"
+          mapfile -d '' -t migrations < <(
+            find backend \
+              -path '*/src/main/resources/db/migration/V*.sql' \
+              ! -path '*/erp-*-connector/*' \
+              -printf '%f\t%p\0' |
+              sort -zV |
+              cut -z -f2-
+          )
+          test "${#migrations[@]}" -gt 0
+          for migration in "${migrations[@]}"; do
             docker compose -f infra/compose.yaml exec -T mysql \
               sh -c 'MYSQL_PWD=root_local mysql -uroot erp' < "$migration"
           done

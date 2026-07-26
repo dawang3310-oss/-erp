@@ -62,7 +62,14 @@ try {
     throw 'restored database contains no tables'
   }
 
-  Write-Host "Backup/restore smoke test passed with $tableCount restored tables."
+  $currentSchemaTableCount = & docker compose -f $composeFile exec -T -e "MYSQL_PWD=$rootPassword" mysql `
+    mysql "--user=root" --batch --skip-column-names `
+    -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$restoreDatabase' AND table_name IN ('md_spu', 'md_import_job', 'md_export_job', 'audit_log');"
+  if ($LASTEXITCODE -ne 0 -or [int]$currentSchemaTableCount -ne 4) {
+    throw "restored database is missing current product catalog tables (expected 4, found $currentSchemaTableCount)"
+  }
+
+  Write-Host "Backup/restore smoke test passed with $tableCount restored tables, including all current product catalog tables."
 }
 finally {
   & docker compose -f $composeFile exec -T mysql rm -f $containerDumpPath 2>$null
