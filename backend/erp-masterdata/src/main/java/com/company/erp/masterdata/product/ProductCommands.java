@@ -27,10 +27,12 @@ public final class ProductCommands {
       String categoryId,
       Map<String, String> attributes,
       List<UpdateSku> skus,
+      List<CreateSku> newSkus,
       long version) {
     public UpdateSpu {
       attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
       skus = skus == null ? List.of() : List.copyOf(skus);
+      newSkus = newSkus == null ? List.of() : List.copyOf(newSkus);
     }
   }
 
