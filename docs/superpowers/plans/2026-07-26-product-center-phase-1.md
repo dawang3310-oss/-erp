@@ -354,7 +354,7 @@ Run: `mvn -f backend/pom.xml -pl erp-masterdata -am test`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/erp-masterdata
@@ -827,7 +827,7 @@ git commit -m "feat: build product catalog list"
 - Consumes: Task 7 product APIs and Task 6 image endpoint.
 - Produces: create/edit/detail pages with nested SKU rows.
 
-- [ ] **Step 1: Write failing form-model unit tests**
+- [x] **Step 1: Write failing form-model unit tests**
 
 ```ts
 expect(validateProductForm({
@@ -839,11 +839,11 @@ expect(validateProductForm({
 
 Cover duplicate SKU rows, duplicate nonblank barcodes, missing SPU/name/SKU/unit, malformed attributes, and immutable SKU code behavior during edit.
 
-- [ ] **Step 2: Write failing editor and detail component tests**
+- [x] **Step 2: Write failing editor and detail component tests**
 
 Test add/remove SKU row, submit create, optimistic update, 409 display, image type/size rejection, image upload progress, and audit-history rendering.
 
-- [ ] **Step 3: Run the tests and verify they fail**
+- [x] **Step 3: Run the tests and verify they fail**
 
 Run: `pnpm --dir frontend --filter admin test --run src/views/products`
 
@@ -853,11 +853,13 @@ Expected: FAIL because editor and detail views are absent.
 
 Use stable row IDs independent of SKU code. Prevent removing the last SKU. Disable SKU code editing for persisted rows. Show server conflict messages next to the matching SKU or barcode field. Brand and category selectors load lookup APIs and allow a product administrator to create a missing brand or category without leaving the form.
 
-- [ ] **Step 5: Implement detail and image management**
+Core create/edit, SKU validation, immutable persisted codes, and field-level server conflicts are complete. Brand/category lookup and inline creation remain pending because the backend does not yet expose reference-data endpoints.
+
+- [x] **Step 5: Implement detail and image management**
 
 Display SPU metadata, all SKUs, image gallery, lifecycle, timestamps, version, and audit history. Image upload accepts only JPEG/PNG/WebP and 10 MiB before sending.
 
-- [ ] **Step 6: Run frontend verification**
+- [x] **Step 6: Run frontend verification**
 
 Run: `pnpm --dir frontend test`
 
