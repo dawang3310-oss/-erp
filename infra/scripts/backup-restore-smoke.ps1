@@ -2,7 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $composeFile = Join-Path $repoRoot 'infra\compose.yaml'
-$dumpPath = Join-Path $env:TEMP "erp-backup-$([guid]::NewGuid().ToString('N')).sql"
+$backupId = [guid]::NewGuid().ToString('N')
+$dumpPath = Join-Path ([System.IO.Path]::GetTempPath()) "erp-backup-$backupId.sql"
+$containerDumpPath = "/tmp/erp-backup-$backupId.sql"
 $sourceDatabase = if ($env:ERP_DB_NAME) { $env:ERP_DB_NAME } else { 'erp' }
 $restoreDatabase = 'erp_restore_smoke'
 $user = if ($env:ERP_DB_USERNAME) { $env:ERP_DB_USERNAME } else { 'erp' }
@@ -42,9 +44,13 @@ try {
     throw 'could not create isolated restore database'
   }
 
-  Get-Content -Raw -LiteralPath $dumpPath |
-    & docker compose -f $composeFile exec -T -e "MYSQL_PWD=$rootPassword" mysql `
-      mysql "--user=root" $restoreDatabase
+  & docker compose -f $composeFile cp $dumpPath "mysql:$containerDumpPath"
+  if ($LASTEXITCODE -ne 0) {
+    throw 'could not copy backup into MySQL container'
+  }
+
+  & docker compose -f $composeFile exec -T -e "MYSQL_PWD=$rootPassword" mysql `
+    sh -c "mysql --user=root $restoreDatabase < $containerDumpPath"
   if ($LASTEXITCODE -ne 0) {
     throw 'database restore failed'
   }
@@ -59,6 +65,7 @@ try {
   Write-Host "Backup/restore smoke test passed with $tableCount restored tables."
 }
 finally {
+  & docker compose -f $composeFile exec -T mysql rm -f $containerDumpPath 2>$null
   & docker compose -f $composeFile exec -T -e "MYSQL_PWD=$rootPassword" mysql `
     mysql "--user=root" `
     -e "DROP DATABASE IF EXISTS $restoreDatabase;" 2>$null
