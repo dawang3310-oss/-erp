@@ -605,15 +605,15 @@ where id = ? and status = 'CONFIRMED'
 
 If the update count is zero, another worker already owns the job. Store the uploaded workbook under a generated object key; never store workbook bytes in MySQL.
 
-- [ ] **Step 7: Add a bounded executor**
+- [x] **Step 7: Add a bounded executor**
 
 Configure a `ThreadPoolTaskExecutor` with core size 2, max size 4, queue capacity 100, and thread prefix `product-job-`. Upload stores the workbook and submits only the persisted job ID for preflight; confirmation submits only the same persisted job ID for execution.
 
-- [ ] **Step 8: Add secured job endpoints**
+- [x] **Step 8: Add secured job endpoints**
 
 Use `ROLE_PRODUCT_ADMIN` for upload/confirm and `ROLE_PRODUCT_VIEW`, `ROLE_PRODUCT_OPERATOR`, or `ROLE_PRODUCT_ADMIN` for job/result reads. Require `Idempotency-Key` on confirmation and export creation.
 
-- [ ] **Step 9: Run backend tests**
+- [x] **Step 9: Run backend tests**
 
 Run: `mvn -f backend/pom.xml -pl erp-boot -am test`
 
