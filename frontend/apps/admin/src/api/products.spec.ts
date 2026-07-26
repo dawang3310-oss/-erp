@@ -6,7 +6,11 @@ import {
   ProductApiError,
   changeProductStatus,
   confirmProductImport,
+  createProductBrand,
+  createProductCategory,
   createProductExport,
+  listProductBrands,
+  listProductCategories,
   listProducts,
 } from './products'
 
@@ -79,5 +83,48 @@ describe('product API client', () => {
       'export-key-1',
     )).resolves.toEqual({ id: 'EXPORT-1' })
     expect(keys).toEqual(['confirm-key-1', 'export-key-1'])
+  })
+
+  it('searches and creates product reference data', async () => {
+    server.use(
+      http.get('/api/products/reference/brands', ({ request }) => {
+        expect(new URL(request.url).searchParams.get('query')).toBe('星')
+        return HttpResponse.json([{ id: 'BRAND-1', name: '星链' }])
+      }),
+      http.post('/api/products/reference/brands', async ({ request }) => {
+        expect(await request.json()).toEqual({ name: '远航' })
+        return HttpResponse.json({ id: 'BRAND-2', name: '远航' }, { status: 201 })
+      }),
+      http.get('/api/products/reference/categories', ({ request }) => {
+        expect(new URL(request.url).searchParams.get('query')).toBe('杯')
+        return HttpResponse.json([{
+          id: 'CATEGORY-1',
+          name: '杯具',
+          parentId: null,
+          path: '/CATEGORY-1',
+        }])
+      }),
+      http.post('/api/products/reference/categories', async ({ request }) => {
+        expect(await request.json()).toEqual({ name: '保温杯', parentId: 'CATEGORY-1' })
+        return HttpResponse.json({
+          id: 'CATEGORY-2',
+          name: '保温杯',
+          parentId: 'CATEGORY-1',
+          path: '/CATEGORY-1/CATEGORY-2',
+        }, { status: 201 })
+      }),
+    )
+
+    await expect(listProductBrands('星')).resolves.toEqual([
+      { id: 'BRAND-1', name: '星链' },
+    ])
+    await expect(createProductBrand('远航')).resolves.toMatchObject({ id: 'BRAND-2' })
+    await expect(listProductCategories('杯')).resolves.toMatchObject([
+      { id: 'CATEGORY-1', path: '/CATEGORY-1' },
+    ])
+    await expect(createProductCategory('保温杯', 'CATEGORY-1')).resolves.toMatchObject({
+      id: 'CATEGORY-2',
+      parentId: 'CATEGORY-1',
+    })
   })
 })

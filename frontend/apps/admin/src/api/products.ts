@@ -147,6 +147,16 @@ export type ProductExportJob = {
   finishedAt: string | null
 }
 
+export type ProductReferenceItem = {
+  id: string
+  name: string
+}
+
+export type ProductCategoryItem = ProductReferenceItem & {
+  parentId: string | null
+  path: string
+}
+
 type ErrorBody = {
   code?: string
   message?: string
@@ -349,4 +359,38 @@ export function removeProductImage(
     `/api/products/spus/${encodeURIComponent(productId)}/images/${encodeURIComponent(imageId)}?${params}`,
     { method: 'DELETE' },
   )
+}
+
+function referenceQuery(query: string) {
+  const params = new URLSearchParams()
+  if (query.trim()) {
+    params.set('query', query.trim())
+  }
+  const text = params.toString()
+  return text ? `?${text}` : ''
+}
+
+export function listProductBrands(query = ''): Promise<ProductReferenceItem[]> {
+  return requestJson(`/api/products/reference/brands${referenceQuery(query)}`)
+}
+
+export function createProductBrand(name: string): Promise<ProductReferenceItem> {
+  return requestJson('/api/products/reference/brands', {
+    method: 'POST',
+    body: JSON.stringify({ name: name.trim() }),
+  })
+}
+
+export function listProductCategories(query = ''): Promise<ProductCategoryItem[]> {
+  return requestJson(`/api/products/reference/categories${referenceQuery(query)}`)
+}
+
+export function createProductCategory(
+  name: string,
+  parentId?: string | null,
+): Promise<ProductCategoryItem> {
+  return requestJson('/api/products/reference/categories', {
+    method: 'POST',
+    body: JSON.stringify({ name: name.trim(), parentId: parentId?.trim() || null }),
+  })
 }

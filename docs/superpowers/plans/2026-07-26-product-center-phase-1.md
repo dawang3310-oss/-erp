@@ -849,11 +849,11 @@ Run: `pnpm --dir frontend --filter admin test --run src/views/products`
 
 Expected: FAIL because editor and detail views are absent.
 
-- [ ] **Step 4: Implement create/edit form**
+- [x] **Step 4: Implement create/edit form**
 
 Use stable row IDs independent of SKU code. Prevent removing the last SKU. Disable SKU code editing for persisted rows. Show server conflict messages next to the matching SKU or barcode field. Brand and category selectors load lookup APIs and allow a product administrator to create a missing brand or category without leaving the form.
 
-Core create/edit, SKU validation, immutable persisted codes, and field-level server conflicts are complete. Brand/category lookup and inline creation remain pending because the backend does not yet expose reference-data endpoints.
+Core create/edit, SKU validation, immutable persisted codes, field-level server conflicts, and searchable brand/category lookup with inline creation are complete.
 
 - [x] **Step 5: Implement detail and image management**
 

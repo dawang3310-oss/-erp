@@ -1226,6 +1226,18 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+.reference-field {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.reference-field > .text-button {
+  min-height: 34px;
+  white-space: nowrap;
+}
+
 .stacked-field textarea {
   width: 100%;
   padding: 9px 11px;
@@ -1749,6 +1761,10 @@ button:disabled {
   .sku-editor-grid,
   .product-definition-grid,
   .json-summary dl {
+    grid-template-columns: 1fr;
+  }
+
+  .reference-field {
     grid-template-columns: 1fr;
   }
 

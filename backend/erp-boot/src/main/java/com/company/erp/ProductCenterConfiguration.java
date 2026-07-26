@@ -2,12 +2,14 @@ package com.company.erp;
 
 import com.company.erp.masterdata.product.JdbcProductCatalogService;
 import com.company.erp.masterdata.product.JdbcProductQueryService;
+import com.company.erp.masterdata.product.JdbcProductReferenceDataService;
 import com.company.erp.masterdata.importing.JdbcProductImportService;
 import com.company.erp.masterdata.importing.ProductImportService;
 import com.company.erp.masterdata.importing.ProductWorkbookService;
 import com.company.erp.masterdata.product.ProductCatalogService;
 import com.company.erp.masterdata.product.ProductObjectStore;
 import com.company.erp.masterdata.product.ProductQueryService;
+import com.company.erp.masterdata.product.ProductReferenceDataService;
 import com.company.erp.storage.MinioProductObjectStore;
 import com.company.erp.storage.ProductStorageProperties;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +33,11 @@ public class ProductCenterConfiguration {
   @Bean
   ProductQueryService productQueryService(JdbcTemplate jdbc) {
     return new JdbcProductQueryService(jdbc);
+  }
+
+  @Bean
+  ProductReferenceDataService productReferenceDataService(JdbcTemplate jdbc) {
+    return new JdbcProductReferenceDataService(jdbc);
   }
 
   @Bean

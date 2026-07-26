@@ -3,9 +3,15 @@ import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   ProductApiError,
+  createProductBrand,
+  createProductCategory,
   createProduct,
   getProduct,
+  listProductBrands,
+  listProductCategories,
   updateProduct,
+  type ProductCategoryItem,
+  type ProductReferenceItem,
 } from '../../api/products'
 import {
   createEmptyProductForm,
@@ -27,9 +33,22 @@ const saving = ref(false)
 const loadError = ref('')
 const submitError = ref('')
 const version = ref(0)
+const brands = ref<ProductReferenceItem[]>([])
+const categories = ref<ProductCategoryItem[]>([])
+const brandQuery = ref('')
+const categoryQuery = ref('')
+const referenceError = ref('')
+const referenceLoading = ref(false)
+const createReference = ref<'brand' | 'category' | null>(null)
+const referenceName = ref('')
+const referenceParentId = ref('')
+const referenceCreateError = ref('')
+const creatingReference = ref(false)
 const isEdit = computed(() => route.name === 'product-edit')
 const productId = computed(() => String(route.params.id ?? ''))
 const title = computed(() => isEdit.value ? '编辑商品' : '新建商品')
+let brandRequestSequence = 0
+let categoryRequestSequence = 0
 
 function replaceForm(next: ReturnType<typeof createEmptyProductForm>) {
   form.spuCode = next.spuCode
@@ -40,11 +59,74 @@ function replaceForm(next: ReturnType<typeof createEmptyProductForm>) {
   form.skus.splice(0, form.skus.length, ...next.skus)
 }
 
+async function searchBrands() {
+  const requestSequence = ++brandRequestSequence
+  referenceError.value = ''
+  try {
+    const result = await listProductBrands(brandQuery.value)
+    if (requestSequence === brandRequestSequence) {
+      const selected = brands.value.find((brand) => brand.id === form.brandId)
+      brands.value = selected && !result.some((brand) => brand.id === selected.id)
+        ? [...result, selected]
+        : result
+    }
+  } catch {
+    if (requestSequence === brandRequestSequence) {
+      referenceError.value = '品牌加载失败，请稍后重试'
+    }
+  }
+}
+
+async function searchCategories() {
+  const requestSequence = ++categoryRequestSequence
+  referenceError.value = ''
+  try {
+    const result = await listProductCategories(categoryQuery.value)
+    if (requestSequence === categoryRequestSequence) {
+      const selected = categories.value.find((category) => category.id === form.categoryId)
+      categories.value = selected && !result.some((category) => category.id === selected.id)
+        ? [...result, selected]
+        : result
+    }
+  } catch {
+    if (requestSequence === categoryRequestSequence) {
+      referenceError.value = '类目加载失败，请稍后重试'
+    }
+  }
+}
+
+async function loadReferenceData() {
+  referenceLoading.value = true
+  await Promise.all([searchBrands(), searchCategories()])
+  referenceLoading.value = false
+}
+
+function includeCurrentReferences(
+  brandId: string | null,
+  brandName: string | null,
+  categoryId: string | null,
+  categoryName: string | null,
+) {
+  if (brandId && !brands.value.some((brand) => brand.id === brandId)) {
+    brands.value.push({ id: brandId, name: brandName || brandId })
+  }
+  if (categoryId && !categories.value.some((category) => category.id === categoryId)) {
+    categories.value.push({
+      id: categoryId,
+      name: categoryName || categoryId,
+      parentId: null,
+      path: `/${categoryId}`,
+    })
+  }
+}
+
 async function loadEditor() {
   errors.value = { skus: {} }
   loadError.value = ''
   submitError.value = ''
+  const referencesReady = loadReferenceData()
   if (!isEdit.value) {
+    void referencesReady
     version.value = 0
     replaceForm(createEmptyProductForm())
     return
@@ -54,6 +136,13 @@ async function loadEditor() {
     const detail = await getProduct(productId.value)
     version.value = detail.version
     replaceForm(productDetailToForm(detail))
+    await referencesReady
+    includeCurrentReferences(
+      detail.brandId,
+      detail.brandName,
+      detail.categoryId,
+      detail.categoryName,
+    )
   } catch {
     loadError.value = '商品加载失败，请稍后重试'
   } finally {
@@ -92,6 +181,54 @@ function applyServerConflict(error: ProductApiError) {
     if (kind === 'DUPLICATE_BARCODE' && sku.barcode.trim() === conflictingValue) {
       errors.value.skus[sku.rowId].barcode = '商品条码已存在'
     }
+  }
+}
+
+function openCreateReference(kind: 'brand' | 'category') {
+  createReference.value = kind
+  referenceName.value = ''
+  referenceParentId.value = ''
+  referenceCreateError.value = ''
+}
+
+function closeCreateReference() {
+  createReference.value = null
+  referenceName.value = ''
+  referenceParentId.value = ''
+}
+
+async function confirmCreateReference() {
+  if (!createReference.value || !referenceName.value.trim()) {
+    return
+  }
+  creatingReference.value = true
+  referenceCreateError.value = ''
+  try {
+    if (createReference.value === 'brand') {
+      const created = await createProductBrand(referenceName.value)
+      brands.value = [
+        created,
+        ...brands.value.filter((brand) => brand.id !== created.id),
+      ]
+      form.brandId = created.id
+    } else {
+      const created = await createProductCategory(
+        referenceName.value,
+        referenceParentId.value || null,
+      )
+      categories.value = [
+        created,
+        ...categories.value.filter((category) => category.id !== created.id),
+      ]
+      form.categoryId = created.id
+    }
+    closeCreateReference()
+  } catch (error) {
+    referenceCreateError.value = error instanceof ProductApiError
+      ? error.message
+      : '主数据创建失败，请稍后重试'
+  } finally {
+    creatingReference.value = false
   }
 }
 
@@ -159,7 +296,7 @@ async function saveProduct() {
         <div class="section-heading">
           <div>
             <h2 id="basic-info-title">基本信息</h2>
-            <p>SPU 编码保存后不可修改；品牌和类目暂以主数据 ID 关联。</p>
+            <p>SPU 编码保存后不可修改；品牌和类目可搜索或直接新建。</p>
           </div>
         </div>
         <div class="editor-grid">
@@ -173,14 +310,55 @@ async function saveProduct() {
             <input v-model="form.name" />
             <small v-if="errors.name" class="field-error">{{ errors.name }}</small>
           </label>
-          <label class="stacked-field">
-            <span>品牌 ID</span>
-            <input v-model="form.brandId" placeholder="选填，如 BRAND-1" />
-          </label>
-          <label class="stacked-field">
-            <span>类目 ID</span>
-            <input v-model="form.categoryId" placeholder="选填，如 CATEGORY-1" />
-          </label>
+          <div class="reference-field">
+            <label class="stacked-field">
+              <span>搜索品牌</span>
+              <input
+                v-model="brandQuery"
+                aria-label="搜索品牌"
+                placeholder="输入品牌名称"
+                @input="searchBrands"
+              />
+            </label>
+            <label class="stacked-field">
+              <span>品牌</span>
+              <select v-model="form.brandId" aria-label="品牌" :disabled="referenceLoading">
+                <option value="">未设置品牌</option>
+                <option v-for="brand in brands" :key="brand.id" :value="brand.id">
+                  {{ brand.name }}
+                </option>
+              </select>
+            </label>
+            <button type="button" class="text-button" @click="openCreateReference('brand')">
+              新建品牌
+            </button>
+          </div>
+          <div class="reference-field">
+            <label class="stacked-field">
+              <span>搜索类目</span>
+              <input
+                v-model="categoryQuery"
+                aria-label="搜索类目"
+                placeholder="输入类目名称"
+                @input="searchCategories"
+              />
+            </label>
+            <label class="stacked-field">
+              <span>类目</span>
+              <select v-model="form.categoryId" aria-label="类目" :disabled="referenceLoading">
+                <option value="">未设置类目</option>
+                <option v-for="category in categories" :key="category.id" :value="category.id">
+                  {{ category.name }}
+                </option>
+              </select>
+            </label>
+            <button type="button" class="text-button" @click="openCreateReference('category')">
+              新建类目
+            </button>
+          </div>
+          <div v-if="referenceError" class="inline-notice error-state full-field" role="alert">
+            {{ referenceError }}
+          </div>
           <label class="stacked-field full-field">
             <span>商品属性 JSON</span>
             <textarea v-model="form.attributesText" rows="4"></textarea>
@@ -275,5 +453,56 @@ async function saveProduct() {
         </button>
       </footer>
     </form>
+
+    <div
+      v-if="createReference"
+      class="modal-backdrop"
+      role="presentation"
+      @click.self="closeCreateReference"
+    >
+      <form
+        class="confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="createReference === 'brand' ? '新建品牌' : '新建类目'"
+        @submit.prevent="confirmCreateReference"
+      >
+        <h2>{{ createReference === 'brand' ? '新建品牌' : '新建类目' }}</h2>
+        <div v-if="referenceCreateError" class="inline-notice error-state" role="alert">
+          {{ referenceCreateError }}
+        </div>
+        <label class="stacked-field">
+          <span>{{ createReference === 'brand' ? '品牌名称' : '类目名称' }}</span>
+          <input v-model="referenceName" />
+        </label>
+        <label v-if="createReference === 'category'" class="stacked-field">
+          <span>上级类目</span>
+          <select v-model="referenceParentId">
+            <option value="">作为一级类目</option>
+            <option v-for="category in categories" :key="category.id" :value="category.id">
+              {{ category.name }}
+            </option>
+          </select>
+        </label>
+        <div class="dialog-actions">
+          <button type="button" class="secondary-button" @click="closeCreateReference">
+            取消
+          </button>
+          <button
+            type="submit"
+            class="primary-button"
+            :disabled="!referenceName.trim() || creatingReference"
+          >
+            {{
+              creatingReference
+                ? '正在创建…'
+                : createReference === 'brand'
+                  ? '确认新建品牌'
+                  : '确认新建类目'
+            }}
+          </button>
+        </div>
+      </form>
+    </div>
   </section>
 </template>
