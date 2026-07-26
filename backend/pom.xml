@@ -11,6 +11,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <spring-boot.version>3.5.3</spring-boot.version>
     <docker.api.version>1.40</docker.api.version>
+    <poi.version>5.5.1</poi.version>
   </properties>
 
   <modules>
