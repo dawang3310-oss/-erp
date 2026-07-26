@@ -15,6 +15,13 @@ import com.company.erp.masterdata.product.ProductCommands.UpdateSpu;
 import com.company.erp.shared.Ids;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HashSet;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.dao.DuplicateKeyException;
@@ -23,6 +30,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 public final class JdbcProductCatalogService implements ProductCatalogService {
+  private static final long MAX_IMAGE_BYTES = 10L * 1024 * 1024;
   private static final Map<ProductStatus, Set<ProductStatus>> TRANSITIONS = Map.of(
       DRAFT, Set.of(ACTIVE, ARCHIVED),
       ACTIVE, Set.of(DISABLED, ARCHIVED),
@@ -32,12 +40,21 @@ public final class JdbcProductCatalogService implements ProductCatalogService {
 
   private final JdbcTemplate jdbc;
   private final TransactionTemplate transactions;
+  private final ProductObjectStore objects;
 
   public JdbcProductCatalogService(
       JdbcTemplate jdbc,
       PlatformTransactionManager transactionManager) {
+    this(jdbc, transactionManager, null);
+  }
+
+  public JdbcProductCatalogService(
+      JdbcTemplate jdbc,
+      PlatformTransactionManager transactionManager,
+      ProductObjectStore objects) {
     this.jdbc = require(jdbc, "jdbc");
     this.transactions = new TransactionTemplate(require(transactionManager, "transactionManager"));
+    this.objects = objects;
   }
 
   @Override
@@ -170,6 +187,249 @@ public final class JdbcProductCatalogService implements ProductCatalogService {
           json(Map.of("status", current.name())),
           json(Map.of("status", target.name())));
     });
+  }
+
+  @Override
+  public String addImage(
+      String id,
+      InputStream image,
+      long size,
+      String declaredMediaType,
+      long version,
+      AuditActor actor) {
+    requireText(id, "id");
+    requireActor(actor);
+    var store = requireImageStore();
+    var bytes = readImage(image, size);
+    var format = detectFormat(bytes);
+    var checksum = sha256(bytes);
+    var objectKey = "products/" + id + "/" + checksum + "." + format.extension();
+    try {
+      return transactions.execute(status -> {
+        requireCurrentProduct(id, version);
+        var existing = jdbc.query(
+            """
+            select id from md_product_image
+            where spu_id = ? and object_key = ?
+            """,
+            (result, row) -> result.getString(1),
+            id,
+            objectKey);
+        if (!existing.isEmpty()) {
+          return existing.getFirst();
+        }
+        store.put(
+            objectKey,
+            new java.io.ByteArrayInputStream(bytes),
+            bytes.length,
+            format.mediaType(),
+            checksum);
+        bumpVersion(id, version);
+        var imageId = Ids.newId();
+        var displayOrder = jdbc.queryForObject(
+            """
+            select coalesce(max(display_order), -1) + 1
+            from md_product_image where spu_id = ?
+            """,
+            Integer.class,
+            id);
+        jdbc.update(
+            """
+            insert into md_product_image
+              (id, spu_id, object_key, content_sha256, media_type, display_order)
+            values (?, ?, ?, ?, ?, ?)
+            """,
+            imageId,
+            id,
+            objectKey,
+            checksum,
+            format.mediaType(),
+            displayOrder);
+        audit(
+            id,
+            "PRODUCT_IMAGE_ADDED",
+            actor,
+            "Add product image",
+            null,
+            json(Map.of(
+                "imageId", imageId,
+                "objectKey", objectKey,
+                "mediaType", format.mediaType())));
+        return imageId;
+      });
+    } catch (RuntimeException exception) {
+      if (jdbc.queryForObject(
+          "select count(*) from md_product_image where object_key = ?",
+          Integer.class,
+          objectKey) == 0) {
+        store.deleteUnreferenced(objectKey);
+      }
+      throw exception;
+    }
+  }
+
+  @Override
+  public void reorderImages(
+      String id,
+      List<String> imageIds,
+      long version,
+      AuditActor actor) {
+    requireText(id, "id");
+    require(imageIds, "imageIds");
+    requireActor(actor);
+    transactions.executeWithoutResult(status -> {
+      requireCurrentProduct(id, version);
+      var current = jdbc.queryForList(
+          """
+          select id from md_product_image
+          where spu_id = ? order by display_order, id
+          """,
+          String.class,
+          id);
+      if (imageIds.size() != current.size()
+          || new HashSet<>(imageIds).size() != imageIds.size()
+          || !new HashSet<>(imageIds).equals(new HashSet<>(current))) {
+        throw new IllegalArgumentException("Image order must contain every product image exactly once");
+      }
+      for (var index = 0; index < imageIds.size(); index++) {
+        jdbc.update(
+            """
+            update md_product_image set display_order = ?
+            where id = ? and spu_id = ?
+            """,
+            index,
+            imageIds.get(index),
+            id);
+      }
+      bumpVersion(id, version);
+      audit(
+          id,
+          "PRODUCT_IMAGE_REORDERED",
+          actor,
+          "Reorder product images",
+          json(Map.of("imageIds", current)),
+          json(Map.of("imageIds", imageIds)));
+    });
+  }
+
+  @Override
+  public void removeImage(
+      String id,
+      String imageId,
+      long version,
+      String reason,
+      AuditActor actor) {
+    requireText(id, "id");
+    requireText(imageId, "imageId");
+    requireText(reason, "reason");
+    requireActor(actor);
+    var objectKey = transactions.execute(status -> {
+      requireCurrentProduct(id, version);
+      var keys = jdbc.query(
+          """
+          select object_key from md_product_image
+          where id = ? and spu_id = ?
+          """,
+          (result, row) -> result.getString(1),
+          imageId,
+          id);
+      if (keys.isEmpty()) {
+        throw new IllegalArgumentException("Product image not found: " + imageId);
+      }
+      jdbc.update(
+          "delete from md_product_image where id = ? and spu_id = ?",
+          imageId,
+          id);
+      bumpVersion(id, version);
+      audit(
+          id,
+          "PRODUCT_IMAGE_REMOVED",
+          actor,
+          reason.trim(),
+          json(Map.of("imageId", imageId, "objectKey", keys.getFirst())),
+          null);
+      return keys.getFirst();
+    });
+    var references = jdbc.queryForObject(
+        "select count(*) from md_product_image where object_key = ?",
+        Integer.class,
+        objectKey);
+    if (references != null && references == 0) {
+      requireImageStore().deleteUnreferenced(objectKey);
+    }
+  }
+
+  private void bumpVersion(String id, long version) {
+    var changed = jdbc.update(
+        """
+        update md_spu set version = version + 1
+        where id = ? and version = ?
+        """,
+        id,
+        version);
+    if (changed == 0) {
+      throw new StaleProductVersionException(id);
+    }
+  }
+
+  private ProductObjectStore requireImageStore() {
+    if (objects == null) {
+      throw new IllegalStateException("Product object store is required for image operations");
+    }
+    return objects;
+  }
+
+  private static byte[] readImage(InputStream image, long declaredSize) {
+    if (image == null || declaredSize < 0 || declaredSize > MAX_IMAGE_BYTES) {
+      throw new IllegalArgumentException("Product image cannot exceed 10 MiB");
+    }
+    try {
+      var bytes = image.readNBytes((int) MAX_IMAGE_BYTES + 1);
+      if (bytes.length > MAX_IMAGE_BYTES || bytes.length != declaredSize) {
+        throw new IllegalArgumentException("Product image size is invalid");
+      }
+      return bytes;
+    } catch (IOException exception) {
+      throw new IllegalArgumentException("Cannot read product image", exception);
+    }
+  }
+
+  private static ImageFormat detectFormat(byte[] bytes) {
+    if (startsWith(bytes, new int[] {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a})) {
+      return new ImageFormat("png", "image/png");
+    }
+    if (startsWith(bytes, new int[] {0xff, 0xd8, 0xff})) {
+      return new ImageFormat("jpg", "image/jpeg");
+    }
+    if (bytes.length >= 12
+        && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+        && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
+      return new ImageFormat("webp", "image/webp");
+    }
+    throw new IllegalArgumentException("Product image must be JPEG, PNG, or WebP");
+  }
+
+  private static boolean startsWith(byte[] bytes, int[] signature) {
+    if (bytes.length < signature.length) {
+      return false;
+    }
+    for (var index = 0; index < signature.length; index++) {
+      if ((bytes[index] & 0xff) != signature[index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static String sha256(byte[] bytes) {
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException(exception);
+    }
+  }
+
+  private record ImageFormat(String extension, String mediaType) {
   }
 
   private void insertSku(String productId, CreateSku sku) {

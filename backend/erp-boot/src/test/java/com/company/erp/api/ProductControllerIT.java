@@ -5,6 +5,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -121,6 +124,44 @@ class ProductControllerIT {
   void unauthenticatedProductRequestIsRejected() throws Exception {
     mvc.perform(get("/api/products/spus"))
         .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void onlyProductAdminCanUploadReorderAndRemoveImages() throws Exception {
+    var image = new MockMultipartFile(
+        "file",
+        "product.png",
+        "image/png",
+        new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a});
+    when(catalog.addImage(any(), any(), any(Long.class), any(), any(Long.class), any()))
+        .thenReturn("IMAGE-1");
+
+    mvc.perform(multipart("/api/products/spus/PRODUCT-1/images")
+            .file(image)
+            .queryParam("version", "0")
+            .with(productJwt("PRODUCT_ADMIN")))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value("IMAGE-1"));
+
+    mvc.perform(put("/api/products/spus/PRODUCT-1/images/order")
+            .with(productJwt("PRODUCT_ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {"imageIds":["IMAGE-2","IMAGE-1"],"version":1}
+                """))
+        .andExpect(status().isNoContent());
+
+    mvc.perform(delete("/api/products/spus/PRODUCT-1/images/IMAGE-1")
+            .queryParam("version", "2")
+            .queryParam("reason", "Replace old image")
+            .with(productJwt("PRODUCT_ADMIN")))
+        .andExpect(status().isNoContent());
+
+    mvc.perform(multipart("/api/products/spus/PRODUCT-1/images")
+            .file(image)
+            .queryParam("version", "0")
+            .with(productJwt("PRODUCT_VIEW")))
+        .andExpect(status().isForbidden());
   }
 
   private static ProductSummary summary() {

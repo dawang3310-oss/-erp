@@ -1,6 +1,10 @@
 spring:
   application:
     name: ecommerce-erp
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
   datasource:
     url: ${ERP_DB_URL:jdbc:mysql://localhost:3306/erp}
     username: ${ERP_DB_USERNAME:erp}

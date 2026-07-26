@@ -12,22 +12,27 @@ import com.company.erp.masterdata.product.ProductStatus;
 import com.company.erp.masterdata.product.ProductViews.ProductDetail;
 import com.company.erp.masterdata.product.ProductViews.ProductFilter;
 import com.company.erp.masterdata.product.ProductViews.ProductPage;
+import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/products/spus")
@@ -97,6 +102,47 @@ public class ProductController {
     return ResponseEntity.noContent().build();
   }
 
+  @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("hasRole('PRODUCT_ADMIN')")
+  ResponseEntity<CreatedResponse> addImage(
+      @PathVariable("id") String id,
+      @RequestPart("file") MultipartFile file,
+      @RequestParam("version") long version,
+      JwtAuthenticationToken authentication) throws IOException {
+    var imageId = catalog.addImage(
+        id,
+        file.getInputStream(),
+        file.getSize(),
+        file.getContentType(),
+        version,
+        actor(authentication));
+    return ResponseEntity.created(
+        URI.create("/api/products/spus/" + id + "/images/" + imageId))
+        .body(new CreatedResponse(imageId));
+  }
+
+  @PutMapping("/{id}/images/order")
+  @PreAuthorize("hasRole('PRODUCT_ADMIN')")
+  ResponseEntity<Void> reorderImages(
+      @PathVariable("id") String id,
+      @RequestBody ReorderImagesRequest request,
+      JwtAuthenticationToken authentication) {
+    catalog.reorderImages(id, request.imageIds(), request.version(), actor(authentication));
+    return ResponseEntity.noContent().build();
+  }
+
+  @DeleteMapping("/{id}/images/{imageId}")
+  @PreAuthorize("hasRole('PRODUCT_ADMIN')")
+  ResponseEntity<Void> removeImage(
+      @PathVariable("id") String id,
+      @PathVariable("imageId") String imageId,
+      @RequestParam("version") long version,
+      @RequestParam("reason") String reason,
+      JwtAuthenticationToken authentication) {
+    catalog.removeImage(id, imageId, version, reason, actor(authentication));
+    return ResponseEntity.noContent().build();
+  }
+
   private static AuditActor actor(JwtAuthenticationToken authentication) {
     Set<String> roles = authentication.getAuthorities().stream()
         .map(authority -> authority.getAuthority())
@@ -110,6 +156,9 @@ public class ProductController {
   }
 
   record ChangeProductStatusRequest(ProductStatus status, long version, String reason) {
+  }
+
+  record ReorderImagesRequest(List<String> imageIds, long version) {
   }
 
   record CreateProductRequest(

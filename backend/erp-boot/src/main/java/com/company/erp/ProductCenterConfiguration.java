@@ -23,8 +23,9 @@ public class ProductCenterConfiguration {
   @Bean
   ProductCatalogService productCatalogService(
       JdbcTemplate jdbc,
-      PlatformTransactionManager transactionManager) {
-    return new JdbcProductCatalogService(jdbc, transactionManager);
+      PlatformTransactionManager transactionManager,
+      ProductObjectStore objects) {
+    return new JdbcProductCatalogService(jdbc, transactionManager, objects);
   }
 
   @Bean

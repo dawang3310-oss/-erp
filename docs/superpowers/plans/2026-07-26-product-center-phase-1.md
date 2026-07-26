@@ -642,35 +642,35 @@ git commit -m "feat: run product import and export jobs"
 
 - `POST /api/products/spus/{id}/images` accepts one JPEG, PNG, or WebP image up to 10 MiB.
 
-- [ ] **Step 1: Write failing image metadata and controller tests**
+- [x] **Step 1: Write failing image metadata and controller tests**
 
 Upload `image/png` bytes through the controller, assert checksum-based object naming, image ordering, audit creation, and metadata removal without deleting a still-referenced object.
 
-- [ ] **Step 2: Run the storage test and verify it fails**
+- [x] **Step 2: Run the storage test and verify it fails**
 
 Run: `mvn -f backend/pom.xml -pl erp-boot -am -Dtest=ProductImageServiceIT,ProductControllerIT -Dsurefire.failIfNoSpecifiedTests=false test`
 
 Expected: FAIL because image catalog operations and the upload endpoint do not exist.
 
-- [ ] **Step 3: Add image metadata operations**
+- [x] **Step 3: Add image metadata operations**
 
 Add `addImage`, `reorderImages`, and `removeImage` to `ProductCatalogService`. Each method requires the current SPU version, an audit actor, and a nonblank reason for removal.
 
-- [ ] **Step 4: Implement validated upload**
+- [x] **Step 4: Implement validated upload**
 
 Read the first bytes to validate the actual image format instead of trusting the filename. Object keys use `products/{spuId}/{sha256}.{extension}` so duplicate uploads are idempotent. Insert `md_product_image` only after object storage succeeds.
 
-- [ ] **Step 5: Test controller authorization and audit**
+- [x] **Step 5: Test controller authorization and audit**
 
 `ROLE_PRODUCT_ADMIN` can upload/reorder/remove; viewers can read metadata. Removing an image deletes metadata immediately and schedules physical deletion only when no row references the object key.
 
-- [ ] **Step 6: Run backend tests**
+- [x] **Step 6: Run backend tests**
 
 Run: `mvn -f backend/pom.xml -pl erp-boot -am test`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/pom.xml backend/erp-masterdata backend/erp-boot
