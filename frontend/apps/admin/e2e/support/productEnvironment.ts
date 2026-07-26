@@ -30,6 +30,7 @@ export async function waitForAuthenticatedMysql(
   timeoutMs = 60_000,
 ) {
   const deadline = Date.now() + timeoutMs
+  let consecutiveSuccesses = 0
   while (Date.now() < deadline) {
     try {
       execute(
@@ -48,10 +49,12 @@ export async function waitForAuthenticatedMysql(
         ],
         'ignore',
       )
-      return
+      consecutiveSuccesses += 1
+      if (consecutiveSuccesses >= 2) return
     } catch {
-      await wait(500)
+      consecutiveSuccesses = 0
     }
+    await wait(500)
   }
   throw new Error('Local E2E MySQL did not become ready')
 }

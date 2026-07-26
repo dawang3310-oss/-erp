@@ -32,6 +32,7 @@ test.use({
 })
 
 test.beforeAll(async () => {
+  test.setTimeout(120_000)
   stopProductEnvironment = await startProductEnvironment()
 })
 
