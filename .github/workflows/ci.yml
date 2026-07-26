@@ -47,7 +47,7 @@ jobs:
       - name: Verify browser flow
         working-directory: frontend
         run: |
-          pnpm exec playwright install --with-deps chromium
+          pnpm --filter admin exec playwright install --with-deps chromium
           pnpm --filter admin e2e
 
       - name: Start MySQL for recovery test
