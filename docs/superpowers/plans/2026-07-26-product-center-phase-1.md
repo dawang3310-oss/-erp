@@ -886,7 +886,7 @@ git commit -m "feat: add product editor and detail"
 - Consumes: Task 5 import/export endpoints.
 - Produces: template download, upload, preflight, confirmation, progress, results, error download, and export controls.
 
-- [ ] **Step 1: Write failing workflow component tests**
+- [x] **Step 1: Write failing workflow component tests**
 
 Assert:
 
@@ -896,21 +896,21 @@ Assert:
 
 Test that preflight never labels data as imported, confirmation uses a generated idempotency key once, repeated clicks are disabled, partial success exposes the error workbook, and page reload resumes by job ID in the URL.
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `pnpm --dir frontend --filter admin test --run src/views/products/ProductImportView.spec.ts`
 
 Expected: FAIL because the view does not exist.
 
-- [ ] **Step 3: Implement the workflow**
+- [x] **Step 3: Implement the workflow**
 
 Poll only while status is `CONFIRMED` or `RUNNING`, using 2-second intervals with a 30-second maximum before switching to a manual refresh button. Clear timers on unmount.
 
-- [ ] **Step 4: Implement export**
+- [x] **Step 4: Implement export**
 
 Create an export job from current product filters, poll it using the same bounded policy, and download only after the API reports `SUCCEEDED`.
 
-- [ ] **Step 5: Run frontend tests**
+- [x] **Step 5: Run frontend tests**
 
 Run: `pnpm --dir frontend test`
 
@@ -918,7 +918,7 @@ Run: `pnpm --dir frontend typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/apps/admin/src
