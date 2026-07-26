@@ -542,8 +542,9 @@ void executePreflight(String jobId);
 void confirm(String jobId, String idempotencyKey, AuditActor actor);
 ImportJobView getImportJob(String jobId);
 void executeConfirmedJob(String jobId);
-String createExport(ProductFilter filter, AuditActor actor);
+String createExport(ProductFilter filter, String idempotencyKey, AuditActor actor);
 ExportJobView getExportJob(String jobId);
+void executeExportJob(String jobId);
 ```
 
 - [x] **Step 1: Lock MinIO SDK 8.6.0 and write failing object-storage integration tests**
@@ -619,7 +620,7 @@ Run: `mvn -f backend/pom.xml -pl erp-boot -am test`
 
 Expected: PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add backend/pom.xml backend/erp-masterdata backend/erp-boot backend/erp-identity

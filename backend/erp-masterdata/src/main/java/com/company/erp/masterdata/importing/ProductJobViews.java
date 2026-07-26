@@ -20,4 +20,12 @@ public final class ProductJobViews {
       Instant startedAt,
       Instant finishedAt) {
   }
+
+  public record ExportJobView(
+      String id,
+      String status,
+      String objectKey,
+      Instant createdAt,
+      Instant finishedAt) {
+  }
 }

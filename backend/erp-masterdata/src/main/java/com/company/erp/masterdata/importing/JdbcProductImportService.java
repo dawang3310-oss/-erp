@@ -1,7 +1,9 @@
 package com.company.erp.masterdata.importing;
 
 import com.company.erp.masterdata.importing.ProductJobViews.ImportJobView;
+import com.company.erp.masterdata.importing.ProductJobViews.ExportJobView;
 import com.company.erp.masterdata.importing.ProductWorkbookService.ExistingProductIndex;
+import com.company.erp.masterdata.importing.ProductWorkbookService.ProductExportRow;
 import com.company.erp.masterdata.importing.ProductWorkbookService.ValidProductRow;
 import com.company.erp.masterdata.product.ProductCatalogService;
 import com.company.erp.masterdata.product.ProductCommands.AuditActor;
@@ -11,7 +13,10 @@ import com.company.erp.masterdata.product.ProductCommands.UpdateSku;
 import com.company.erp.masterdata.product.ProductCommands.UpdateSpu;
 import com.company.erp.masterdata.product.ProductObjectStore;
 import com.company.erp.masterdata.product.ProductQueryService;
+import com.company.erp.masterdata.product.ProductViews.ProductFilter;
 import com.company.erp.shared.Ids;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +39,7 @@ public final class JdbcProductImportService implements ProductImportService {
   private static final String WORKBOOK_MEDIA_TYPE =
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   private static final int BATCH_SIZE = 200;
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   private final JdbcTemplate jdbc;
   private final TransactionTemplate transactions;
@@ -262,6 +268,110 @@ public final class JdbcProductImportService implements ProductImportService {
     }
   }
 
+  @Override
+  public String createExport(
+      ProductFilter filter,
+      String idempotencyKey,
+      AuditActor actor) {
+    requireActor(actor);
+    requireText(idempotencyKey, "idempotencyKey");
+    var normalizedFilter = filter == null
+        ? new ProductFilter(null, null, null, null, null)
+        : filter;
+    var jobId = Ids.newId();
+    try {
+      jdbc.update(
+          """
+          insert into md_export_job
+            (id, filter_json, status, idempotency_key, created_by)
+          values (?, ?, 'QUEUED', ?, ?)
+          """,
+          jobId,
+          json(normalizedFilter),
+          idempotencyKey.trim(),
+          actor.subject());
+      return jobId;
+    } catch (DuplicateKeyException exception) {
+      var existing = jdbc.queryForObject(
+          "select id from md_export_job where idempotency_key = ?",
+          String.class,
+          idempotencyKey.trim());
+      if (existing == null) {
+        throw exception;
+      }
+      return existing;
+    }
+  }
+
+  @Override
+  public ExportJobView getExportJob(String jobId) {
+    var jobs = jdbc.query(
+        """
+        select id, status, object_key, created_at, finished_at
+        from md_export_job where id = ?
+        """,
+        (result, row) -> new ExportJobView(
+            result.getString("id"),
+            result.getString("status"),
+            result.getString("object_key"),
+            instant(result.getTimestamp("created_at")),
+            instant(result.getTimestamp("finished_at"))),
+        jobId);
+    if (jobs.isEmpty()) {
+      throw new IllegalArgumentException("Export job not found: " + jobId);
+    }
+    return jobs.getFirst();
+  }
+
+  @Override
+  public void executeExportJob(String jobId) {
+    var claimed = jdbc.update(
+        """
+        update md_export_job set status = 'RUNNING'
+        where id = ? and status = 'QUEUED'
+        """,
+        jobId);
+    if (claimed == 0) {
+      return;
+    }
+    try {
+      var filterJson = jdbc.queryForObject(
+          "select filter_json from md_export_job where id = ?",
+          String.class,
+          jobId);
+      var filter = JSON.readValue(filterJson, ProductFilter.class);
+      var rows = exportRows(filter);
+      var bytes = workbooks.exportProducts(rows.stream());
+      var objectKey = "exports/" + jobId + "/products.xlsx";
+      objects.put(
+          objectKey,
+          new ByteArrayInputStream(bytes),
+          bytes.length,
+          WORKBOOK_MEDIA_TYPE,
+          sha256(bytes));
+      jdbc.update(
+          """
+          update md_export_job
+          set status = 'SUCCEEDED', object_key = ?, finished_at = current_timestamp(6)
+          where id = ? and status = 'RUNNING'
+          """,
+          objectKey,
+          jobId);
+    } catch (Exception exception) {
+      jdbc.update(
+          """
+          update md_export_job
+          set status = 'FAILED', finished_at = current_timestamp(6)
+          where id = ? and status = 'RUNNING'
+          """,
+          jobId);
+      if (exception instanceof RuntimeException runtimeException) {
+        throw runtimeException;
+      }
+      throw new IllegalStateException("Product export failed: " + jobId, exception);
+    }
+  }
+
   private int executeBatch(
       String jobId,
       List<Map.Entry<String, List<ValidProductRow>>> batch,
@@ -373,6 +483,36 @@ public final class JdbcProductImportService implements ProductImportService {
         barcodeToSku);
   }
 
+  private List<ProductExportRow> exportRows(ProductFilter filter) {
+    var rows = new ArrayList<ProductExportRow>();
+    for (var page = 0; ; page++) {
+      var products = queries.list(filter, page, 100);
+      for (var product : products.items()) {
+        var detail = queries.get(product.id()).orElseThrow();
+        for (var sku : detail.skus()) {
+          rows.add(new ProductExportRow(List.of(
+              detail.spuCode(),
+              detail.name(),
+              value(detail.brandName()),
+              value(detail.categoryName()),
+              sku.skuCode(),
+              sku.name(),
+              value(sku.barcode()),
+              json(sku.specifications()),
+              sku.unit(),
+              sku.status().name())));
+        }
+      }
+      if ((long) (page + 1) * 100 >= products.total()) {
+        return rows;
+      }
+      if (rows.size() > ProductWorkbookService.MAX_DATA_ROWS) {
+        throw new IllegalArgumentException(
+            "Export cannot exceed " + ProductWorkbookService.MAX_DATA_ROWS + " rows");
+      }
+    }
+  }
+
   private String storeErrorWorkbook(
       String jobId,
       ProductWorkbookService.ProductPreflight preflight) {
@@ -429,6 +569,18 @@ public final class JdbcProductImportService implements ProductImportService {
       return exception.getClass().getSimpleName();
     }
     return message.length() <= 512 ? message : message.substring(0, 512);
+  }
+
+  private static String json(Object value) {
+    try {
+      return JSON.writeValueAsString(value);
+    } catch (JsonProcessingException exception) {
+      throw new IllegalArgumentException("Cannot serialize product job data", exception);
+    }
+  }
+
+  private static String value(String value) {
+    return value == null ? "" : value;
   }
 
   private static void requireActor(AuditActor actor) {
