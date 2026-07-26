@@ -204,11 +204,11 @@ create table md_import_job (
 create table md_import_error (
   id char(26) not null primary key,
   import_job_id char(26) not null,
-  row_number int not null,
+  source_row_number int not null,
   error_code varchar(64) not null,
   message varchar(512) not null,
   constraint fk_md_import_error_job foreign key (import_job_id) references md_import_job(id),
-  index ix_md_import_error_job_row (import_job_id, row_number)
+  index ix_md_import_error_job_row (import_job_id, source_row_number)
 );
 
 create table md_export_job (

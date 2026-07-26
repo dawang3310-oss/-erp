@@ -4,12 +4,18 @@ import com.company.erp.shared.Ids;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 public final class JdbcMasterDataService implements MasterDataService {
   private final JdbcTemplate jdbc;
+  private final TransactionOperations transactions;
 
   public JdbcMasterDataService(JdbcTemplate jdbc) {
     this.jdbc = require(jdbc, "jdbc");
+    this.transactions = new TransactionTemplate(
+        new DataSourceTransactionManager(require(jdbc.getDataSource(), "jdbc.dataSource")));
   }
 
   @Override
@@ -38,15 +44,27 @@ public final class JdbcMasterDataService implements MasterDataService {
 
   @Override
   public String createSku(String skuCode, String barcode, boolean batchEnabled, boolean serialEnabled) {
-    var id = Ids.newId();
-    jdbc.update(
-        "insert into md_sku (id, sku_code, barcode, batch_enabled, serial_enabled) values (?, ?, ?, ?, ?)",
-        id,
-        requireText(skuCode, "skuCode"),
-        normalizeNullable(barcode),
-        batchEnabled,
-        serialEnabled);
-    return id;
+    return transactions.execute(status -> {
+      var normalizedSkuCode = requireText(skuCode, "skuCode");
+      var id = Ids.newId();
+      jdbc.update(
+          "insert into md_spu (id, spu_code, name, status) values (?, ?, ?, 'ACTIVE')",
+          id,
+          "LEGACY-" + id,
+          normalizedSkuCode);
+      jdbc.update(
+          "insert into md_sku "
+              + "(id, spu_id, sku_code, name, barcode, batch_enabled, serial_enabled) "
+              + "values (?, ?, ?, ?, ?, ?, ?)",
+          id,
+          id,
+          normalizedSkuCode,
+          normalizedSkuCode,
+          normalizeNullable(barcode),
+          batchEnabled,
+          serialEnabled);
+      return id;
+    });
   }
 
   @Override
