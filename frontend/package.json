@@ -1,0 +1,11 @@
+{
+  "name": "xinglian-erp-frontend",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "build": "pnpm --filter admin build",
+    "dev": "pnpm --filter admin dev",
+    "test": "pnpm --filter admin test --run",
+    "typecheck": "pnpm --filter admin typecheck"
+  }
+}

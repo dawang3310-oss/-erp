@@ -1,0 +1,86 @@
+name: Core ERP acceptance
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Verify backend
+        working-directory: backend
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
+        run: mvn -B verify
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify frontend
+        working-directory: frontend
+        run: |
+          pnpm test
+          pnpm typecheck
+          pnpm build
+
+      - name: Verify browser flow
+        working-directory: frontend
+        run: |
+          pnpm --filter admin exec playwright install --with-deps chromium
+          pnpm --filter admin e2e
+
+      - name: Start MySQL for recovery test
+        run: docker compose -f infra/compose.yaml up -d mysql
+
+      - name: Apply schema for recovery test
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if docker compose -f infra/compose.yaml exec -T mysql \
+              sh -c 'MYSQL_PWD=root_local mysql -uroot --batch --skip-column-names -e "SELECT 1;"' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          mapfile -d '' -t migrations < <(
+            find backend \
+              -path '*/src/main/resources/db/migration/V*.sql' \
+              ! -path '*/erp-*-connector/*' \
+              -printf '%f\t%p\0' |
+              sort -zV |
+              cut -z -f2-
+          )
+          test "${#migrations[@]}" -gt 0
+          for migration in "${migrations[@]}"; do
+            docker compose -f infra/compose.yaml exec -T mysql \
+              sh -c 'MYSQL_PWD=root_local mysql -uroot erp' < "$migration"
+          done
+
+      - name: Run backup and restore smoke test
+        shell: pwsh
+        run: ./infra/scripts/backup-restore-smoke.ps1
+
+      - name: Stop recovery services
+        if: always()
+        run: docker compose -f infra/compose.yaml down -v

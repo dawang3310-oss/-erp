@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: pinduoduo-connector
+  datasource:
+    url: ${PDD_DB_URL:jdbc:mysql://localhost:3306/pdd_connector}
+    username: ${PDD_DB_USERNAME:erp}
+    password: ${PDD_DB_PASSWORD:erp_local}
+  flyway:
+    enabled: true
+
+pdd:
+  production-enabled: ${PDD_PRODUCTION_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-} shopId=%X{shopId:-} capability=%X{capability:-}]"
